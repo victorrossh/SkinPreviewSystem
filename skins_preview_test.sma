@@ -8,18 +8,27 @@
 #define AUTHOR "ftl~"
 
 #define MODEL_CLASSNAME "skin_preview"
+#define SKINS_NUM 2
 
 // Variable to store the preview entity for each player
 new g_iUserEntityIndex[33];
 
+enum eSkin
+{
+	szName[64],
+	szModel[128],
+	iSubmodel
+}
+
+// Array with test skins
+new g_Skins[SKINS_NUM][eSkin] = {
+	{"Knife Ahegao", "models/llg2025/v_def_knife.mdl", 26},  // Knife model from shop
+	{"USP Abstract Blue", "models/llg2025/v_usp.mdl", 23}    // USP model from shop
+}
+
 public plugin_init()
 {
 	register_plugin(PLUGIN, VERSION, AUTHOR);
-
-	// Register natives for future shop integration
-	register_native("skins_preview_show", "native_show_preview", 1);
-	register_native("skins_preview_stop", "native_stop_preview", 1);
-
 	register_clcmd("say /preview", "cmd_test_preview");
 
 	// Register thinker for the entity to follow the aim
@@ -28,13 +37,14 @@ public plugin_init()
 
 public plugin_precache()
 {
-	// Precache test model (Knife Ahegao)
-	precache_model("models/llg2025/v_def_knife.mdl");
+	for (new i = 0; i < SKINS_NUM; i++)
+	{
+		precache_model(g_Skins[i][szModel]);
+	}
 
 	precache_model("models/rpgrocket.mdl");
 }
 
-// Test command
 public cmd_test_preview(id)
 {
 	if (!is_user_alive(id))
@@ -43,72 +53,76 @@ public cmd_test_preview(id)
 		return PLUGIN_HANDLED;
 	}
 
-	// Test with "Knife Ahegao" (model: "models/llg2025/v_def_knife.mdl", submodel: 26)
-	new szTestModel[] = "models/llg2025/v_def_knife.mdl";
-	new iSubModel = 26;
-
-	if (g_iUserEntityIndex[id] == 0) // If there's no active preview
+	if (g_iUserEntityIndex[id] != 0)
 	{
-		if (native_show_preview(id, szTestModel, iSubModel))
-		{
-			client_print(id, print_chat, "Showing preview of Knife Ahegao (submodel %d). Use /preview to remove it.", iSubModel);
-		}
-		else
-		{
-			client_print(id, print_chat, "Failed to show preview!");
-		}
-	}
-	else // If there is already a preview, remove it
-	{
-		native_stop_preview(id);
+		safelyRemoveEntity(id);
 		client_print(id, print_chat, "Preview removed.");
+		return PLUGIN_HANDLED;
+	}
+
+	new menu = menu_create("Skin Preview Menu", "menu_handler");
+	new szMenuItem[128], szData[6];
+	for (new i = 0; i < SKINS_NUM; i++)
+	{
+		formatex(szMenuItem, charsmax(szMenuItem), "%s (Submodel: %d)", g_Skins[i][szName], g_Skins[i][iSubmodel]);
+		formatex(szData, charsmax(szData), "%d", i);
+		menu_additem(menu, szMenuItem, szData);
+	}
+
+	menu_setprop(menu, MPROP_EXIT, MEXIT_ALL);
+	menu_display(id, menu, 0);
+
+	return PLUGIN_HANDLED;
+}
+
+public menu_handler(id, menu, item)
+{
+	if (item == MENU_EXIT)
+	{
+		menu_destroy(menu);
+		return PLUGIN_HANDLED;
+	}
+
+	new szData[6], iAccess, iCallback;
+	menu_item_getinfo(menu, item, iAccess, szData, charsmax(szData), _, _, iCallback);
+	new iChoice = str_to_num(szData);
+
+	menu_destroy(menu);
+
+	if (!is_user_alive(id))
+	{
+		client_print(id, print_chat, "You need to be alive to show the preview!");
+		return PLUGIN_HANDLED;
+	}
+
+	safelyRemoveEntity(id); // Remove preview anterior
+	new iEnt = createEntityModel(id, g_Skins[iChoice][szModel], g_Skins[iChoice][iSubmodel]);
+	if (iEnt > 0)
+	{
+		g_iUserEntityIndex[id] = iEnt;
+		client_print(id, print_chat, "Showing preview of %s (submodel %d). Use /preview to remove it.", g_Skins[iChoice][szName], g_Skins[iChoice][iSubmodel]);
+	}
+	else
+	{
+		client_print(id, print_chat, "Failed to show preview!");
 	}
 	return PLUGIN_HANDLED;
 }
 
-// Native to show preview
-public native_show_preview(id, const szModel[], iSubModel)
-{
-	if (!is_user_alive(id))
-		return 0;
-
-	// Remove previous preview
-	safelyRemoveEntity(id);
-
-	// Create preview entity with the specified model and submodel
-	new iEnt = createEntityModel(id, szModel, iSubModel);
-	if (iEnt > 0)
-	{
-		g_iUserEntityIndex[id] = iEnt;
-		return 1;
-	}
-	return 0;
-}
-
-// Native to stop preview
-public native_stop_preview(id)
-{
-	safelyRemoveEntity(id);
-	return 1;
-}
-
 // Function to create the preview entity
-createEntityModel(id, const szModel[], iSubModel)
+createEntityModel(id, const model[], submodel)
 {
 	new iEnt = create_entity("info_target");
 	if (!pev_valid(iEnt))
 		return 0;
 
-	new szActualModel[64];
-	copy(szActualModel, charsmax(szActualModel), szModel);
-
 	// Set the model
-	engfunc(EngFunc_SetModel, iEnt, szActualModel);
+	engfunc(EngFunc_SetModel, iEnt, model);
 
 	// Set the submodel if applicable
-	if (iSubModel > 0)
+	if (submodel > 0)
 	{
-		set_pev(iEnt, pev_body, iSubModel);
+		set_pev(iEnt, pev_body, submodel);
 	}
 
 	// Make the entity visible
