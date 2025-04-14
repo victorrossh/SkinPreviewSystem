@@ -8,7 +8,7 @@
 #define AUTHOR "ftl~"
 
 #define MODEL_CLASSNAME "skin_preview"
-#define SKINS_NUM 2
+#define SKINS_NUM 6
 
 // Variable to store the preview entity for each player
 new g_iUserEntityIndex[33];
@@ -22,8 +22,12 @@ enum eSkin
 
 // Array with test skins
 new g_Skins[SKINS_NUM][eSkin] = {
-	{"Knife Ahegao", "models/llg2025/v_def_knife.mdl", 26},  // Knife model from shop
-	{"USP Abstract Blue", "models/llg2025/v_usp.mdl", 23}    // USP model from shop
+	{"Knife Ahegao", "models/llg2025/v_def_knife.mdl", 26},
+	{"USP Abstract Blue", "models/llg2025/v_usp.mdl", 23},
+	{"Pink Panther", "models/player/llg2025_panther/llg2025_panther.mdl", 0},
+	{"Neo", "models/player/llg_player_compiled/llg_player_compiled.mdl", 7},
+	{"Mila", "models/player/llg2025_mila/llg2025_mila.mdl", 0},
+	{"Banana", "models/player/llg_player_compiled/llg_player_compiled.mdl", 6}
 }
 
 public plugin_init()
@@ -37,9 +41,20 @@ public plugin_init()
 
 public plugin_precache()
 {
+	new mdl[128];
+	
+	// Precache all models from g_Skins array
 	for (new i = 0; i < SKINS_NUM; i++)
 	{
 		precache_model(g_Skins[i][szModel]);
+		
+		// Check and precache T model if it exists (for player models)
+		if (containi(g_Skins[i][szModel], "models/player/") != -1)
+		{
+			format(mdl, charsmax(mdl), "%sT.mdl", g_Skins[i][szModel]);
+			if (file_exists(mdl))
+				precache_generic(mdl);
+		}
 	}
 
 	precache_model("models/rpgrocket.mdl");
@@ -187,9 +202,9 @@ updateEntityPosition(id, iEnt)
 	engfunc(EngFunc_MakeVectors, fAngles);
 	global_get(glb_v_forward, fEnd);
 
-	fEnd[0] = fOrigin[0] + fEnd[0] * 30.0;
-	fEnd[1] = fOrigin[1] + fEnd[1] * 30.0;
-	fEnd[2] = fOrigin[2] + fEnd[2] * 30.0;
+	fEnd[0] = fOrigin[0] + fEnd[0] * 50.0;
+	fEnd[1] = fOrigin[1] + fEnd[1] * 50.0;
+	fEnd[2] = fOrigin[2] + fEnd[2] * 50.0;
 
 	// Move entity to calculated position
 	engfunc(EngFunc_SetOrigin, iEnt, fEnd);
