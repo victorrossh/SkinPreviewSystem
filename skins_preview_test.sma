@@ -9,9 +9,12 @@
 
 #define MODEL_CLASSNAME "skin_preview"
 #define SKINS_NUM 6
+#define PREVIEW_TIME 15.0 // Time in seconds before preview is automatically removed
 
 // Variable to store the preview entity for each player
 new g_iUserEntityIndex[33];
+new Float:g_fPreviewDistance[33] = {50.0, ...}; // Default distance
+new g_iPreviewTask[33]; // Store task IDs for each player
 
 enum eSkin
 {
@@ -115,7 +118,12 @@ public menu_handler(id, menu, item)
 	if (iEnt > 0)
 	{
 		g_iUserEntityIndex[id] = iEnt;
-		client_print(id, print_chat, "Showing preview of %s (submodel %d). Use /preview to remove it.", g_Skins[iChoice][szName], g_Skins[iChoice][iSubmodel]);
+		client_print(id, print_chat, "Showing preview of %s (submodel %d). Preview will be removed in %.0f seconds.", 
+			g_Skins[iChoice][szName], g_Skins[iChoice][iSubmodel], PREVIEW_TIME);
+		
+		// Set task to remove preview after PREVIEW_TIME
+		g_iPreviewTask[id] = set_task(PREVIEW_TIME, "remove_preview_task", id);
+		show_preview_control_menu(id);
 	}
 	else
 	{
@@ -183,6 +191,79 @@ public think_preview(iEnt)
 	set_pev(iEnt, pev_nextthink, get_gametime() + 0.1);
 }
 
+// Function to show the preview control menu
+public show_preview_control_menu(id)
+{
+	new control_menu = menu_create("Preview Control Menu", "preview_control_handler");
+	menu_additem(control_menu, "Move Closer", "1");
+	menu_additem(control_menu, "Move Away", "2");
+	menu_additem(control_menu, "Remove Preview", "3");
+	menu_setprop(control_menu, MPROP_EXIT, MEXIT_ALL);
+	menu_display(id, control_menu, 0);
+}
+
+public preview_control_handler(id, menu, item)
+{
+	if (item == MENU_EXIT)
+	{
+		menu_destroy(menu);
+		return PLUGIN_HANDLED;
+	}
+
+	if (!is_user_alive(id) || !g_iUserEntityIndex[id])
+	{
+		menu_destroy(menu);
+		return PLUGIN_HANDLED;
+	}
+
+	new iEnt = g_iUserEntityIndex[id];
+	if (!pev_valid(iEnt))
+	{
+		menu_destroy(menu);
+		return PLUGIN_HANDLED;
+	}
+
+	new szData[2], iAccess, iCallback;
+	menu_item_getinfo(menu, item, iAccess, szData, charsmax(szData), _, _, iCallback);
+	new iChoice = str_to_num(szData);
+
+	switch (iChoice)
+	{
+		case 1: // Move Closer
+		{
+			g_fPreviewDistance[id] -= 5.0;
+			if (g_fPreviewDistance[id] < 20.0)
+				g_fPreviewDistance[id] = 20.0;
+			updateEntityPosition(id, iEnt);
+			client_print(id, print_chat, "Preview moved closer. Distance: %.1f", g_fPreviewDistance[id]);
+		}
+		case 2: // Move Away
+		{
+			g_fPreviewDistance[id] += 5.0;
+			if (g_fPreviewDistance[id] > 70.0)
+				g_fPreviewDistance[id] = 70.0;
+			updateEntityPosition(id, iEnt);
+			client_print(id, print_chat, "Preview moved away. Distance: %.1f", g_fPreviewDistance[id]);
+		}
+		case 3: // Remove Preview
+		{
+			// Remove the automatic removal task
+			if (g_iPreviewTask[id])
+			{
+				remove_task(g_iPreviewTask[id]);
+				g_iPreviewTask[id] = 0;
+			}
+			safelyRemoveEntity(id);
+			client_print(id, print_chat, "Preview removed.");
+		}
+	}
+
+	// Reopen the menu unless they chose to remove the preview
+	iChoice != 3 ? show_preview_control_menu(id) : menu_destroy(menu);
+
+	return PLUGIN_HANDLED;
+}
+
 // Function to calculate and update the entity position
 updateEntityPosition(id, iEnt)
 {
@@ -198,13 +279,13 @@ updateEntityPosition(id, iEnt)
 	// Get player's aim angles
 	pev(id, pev_v_angle, fAngles);
 
-	// Calculate point 30 units ahead in aim direction
+	// Calculate point based on current distance
 	engfunc(EngFunc_MakeVectors, fAngles);
 	global_get(glb_v_forward, fEnd);
 
-	fEnd[0] = fOrigin[0] + fEnd[0] * 50.0;
-	fEnd[1] = fOrigin[1] + fEnd[1] * 50.0;
-	fEnd[2] = fOrigin[2] + fEnd[2] * 50.0;
+	fEnd[0] = fOrigin[0] + fEnd[0] * g_fPreviewDistance[id];
+	fEnd[1] = fOrigin[1] + fEnd[1] * g_fPreviewDistance[id];
+	fEnd[2] = fOrigin[2] + fEnd[2] * g_fPreviewDistance[id];
 
 	// Move entity to calculated position
 	engfunc(EngFunc_SetOrigin, iEnt, fEnd);
@@ -213,6 +294,11 @@ updateEntityPosition(id, iEnt)
 public client_disconnected(id)
 {
 	safelyRemoveEntity(id);
+	if (g_iPreviewTask[id])
+	{
+		remove_task(g_iPreviewTask[id]);
+		g_iPreviewTask[id] = 0;
+	}
 }
 
 // Function to remove preview entity
@@ -224,4 +310,14 @@ safelyRemoveEntity(id)
 		remove_entity(iEnt);
 	}
 	g_iUserEntityIndex[id] = 0;
+}
+
+public remove_preview_task(id)
+{
+	if (g_iUserEntityIndex[id])
+	{
+		safelyRemoveEntity(id);
+		client_print(id, print_chat, "Preview automatically removed after %.0f seconds.", PREVIEW_TIME);
+	}
+	g_iPreviewTask[id] = 0;
 }
