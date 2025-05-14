@@ -14,7 +14,8 @@
 // Variable to store the preview entity for each player
 new g_iUserEntityIndex[33];
 new Float:g_fPreviewDistance[33] = {50.0, ...}; // Default distance
-new g_iPreviewTask[33]; // Store task IDs for each player
+new g_iPreviewTask[33]; // Store task IDs for countdown and removal
+new Float:g_fPreviewStartTime[33]; // Store start time of preview for each player
 
 enum eSkin
 {
@@ -113,7 +114,7 @@ public menu_handler(id, menu, item)
 		return PLUGIN_HANDLED;
 	}
 
-	safelyRemoveEntity(id); // Remove preview anterior
+	safelyRemoveEntity(id); // Remove previous preview
 	new iEnt = createEntityModel(id, g_Skins[iChoice][szModel], g_Skins[iChoice][iSubmodel]);
 	if (iEnt > 0)
 	{
@@ -121,8 +122,12 @@ public menu_handler(id, menu, item)
 		client_print(id, print_chat, "Showing preview of %s (submodel %d). Preview will be removed in %.0f seconds.", 
 			g_Skins[iChoice][szName], g_Skins[iChoice][iSubmodel], PREVIEW_TIME);
 		
-		// Set task to remove preview after PREVIEW_TIME
-		g_iPreviewTask[id] = set_task(PREVIEW_TIME, "remove_preview_task", id);
+		// Store the start time of the preview
+		g_fPreviewStartTime[id] = get_gametime();
+		
+		// Set repeating task to display countdown on center screen and handle removal
+		g_iPreviewTask[id] = set_task(1.0, "update_preview_timer", id, _, _, "b");
+		
 		show_preview_control_menu(id);
 	}
 	else
@@ -264,6 +269,42 @@ public preview_control_handler(id, menu, item)
 	return PLUGIN_HANDLED;
 }
 
+// Function to display remaining preview time on center screen and handle removal
+public update_preview_timer(id)
+{
+	if (!is_user_alive(id) || !g_iUserEntityIndex[id])
+	{
+		if (g_iPreviewTask[id])
+		{
+			remove_task(g_iPreviewTask[id]);
+			g_iPreviewTask[id] = 0;
+		}
+		safelyRemoveEntity(id);
+		return;
+	}
+
+	// Calculate remaining time based on start time
+	new Float:timeleft = PREVIEW_TIME - (get_gametime() - g_fPreviewStartTime[id]);
+	if (timeleft <= 0.0)
+	{
+		// Time is up, remove preview
+		if (g_iPreviewTask[id])
+		{
+			remove_task(g_iPreviewTask[id]);
+			g_iPreviewTask[id] = 0;
+		}
+		safelyRemoveEntity(id);
+		client_print(id, print_chat, "Preview automatically removed after %.0f seconds.", PREVIEW_TIME);
+		return;
+	}
+
+	// Round the remaining time to the nearest integer (seconds only)
+	new seconds = floatround(timeleft);
+	
+	// Display remaining time on center screen
+	client_print(id, print_center, "Display time remaining: %d", seconds);
+}
+
 // Function to calculate and update the entity position
 updateEntityPosition(id, iEnt)
 {
@@ -310,14 +351,4 @@ safelyRemoveEntity(id)
 		remove_entity(iEnt);
 	}
 	g_iUserEntityIndex[id] = 0;
-}
-
-public remove_preview_task(id)
-{
-	if (g_iUserEntityIndex[id])
-	{
-		safelyRemoveEntity(id);
-		client_print(id, print_chat, "Preview automatically removed after %.0f seconds.", PREVIEW_TIME);
-	}
-	g_iPreviewTask[id] = 0;
 }
