@@ -15,7 +15,7 @@
 new g_iUserEntityIndex[33];
 new Float:g_fPreviewDistance[33] = {50.0, ...}; // Default distance
 new g_iPreviewTask[33]; // Store task IDs for countdown and removal
-new Float:g_fPreviewStartTime[33]; // Store start time of preview for each player
+new g_iPreviewTimeLeft[33]; // Store remaining preview time in seconds for each player
 
 enum eSkin
 {
@@ -122,8 +122,8 @@ public menu_handler(id, menu, item)
 		client_print(id, print_chat, "Showing preview of %s (submodel %d). Preview will be removed in %.0f seconds.", 
 			g_Skins[iChoice][szName], g_Skins[iChoice][iSubmodel], PREVIEW_TIME);
 		
-		// Store the start time of the preview
-		g_fPreviewStartTime[id] = get_gametime();
+		// Initialize the remaining preview time in seconds
+		g_iPreviewTimeLeft[id] = floatround(PREVIEW_TIME);
 		
 		// Set repeating task to display countdown on center screen and handle removal
 		g_iPreviewTask[id] = set_task(1.0, "update_preview_timer", id, _, _, "b");
@@ -283,9 +283,10 @@ public update_preview_timer(id)
 		return;
 	}
 
-	// Calculate remaining time based on start time
-	new Float:timeleft = PREVIEW_TIME - (get_gametime() - g_fPreviewStartTime[id]);
-	if (timeleft <= 0.0)
+	// Decrement the remaining time
+	g_iPreviewTimeLeft[id]--;
+
+	if (g_iPreviewTimeLeft[id] <= 0)
 	{
 		// Time is up, remove preview
 		if (g_iPreviewTask[id])
@@ -298,11 +299,8 @@ public update_preview_timer(id)
 		return;
 	}
 
-	// Round the remaining time to the nearest integer (seconds only)
-	new seconds = floatround(timeleft);
-	
 	// Display remaining time on center screen
-	client_print(id, print_center, "Display time remaining: %d", seconds);
+	client_print(id, print_center, "Display time remaining: %d", g_iPreviewTimeLeft[id]);
 }
 
 // Function to calculate and update the entity position
