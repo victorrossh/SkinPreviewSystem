@@ -9,13 +9,13 @@
 
 #define MODEL_CLASSNAME "skin_preview"
 #define SKINS_NUM 6
-#define PREVIEW_TIME 15.0 // Time in seconds before preview is automatically removed
 
 // Variable to store the preview entity for each player
 new g_iUserEntityIndex[33];
 new Float:g_fPreviewDistance[33] = {50.0, ...}; // Default distance
-new g_iPreviewTask[33]; // Store task IDs for countdown and removal
-new g_iPreviewTimeLeft[33]; // Store remaining preview time in seconds for each player
+new g_iPreviewTask[33]; // Store remaining preview time in seconds (also indicates if task is active)
+
+new cvar_preview_time; // Cvar to control preview duration
 
 enum eSkin
 {
@@ -38,6 +38,9 @@ public plugin_init()
 {
 	register_plugin(PLUGIN, VERSION, AUTHOR);
 	register_clcmd("say /preview", "cmd_test_preview");
+
+	// Register cvar for preview time (default 15 seconds)
+	cvar_preview_time = register_cvar("preview_time", "15");
 
 	// Register thinker for the entity to follow the aim
 	register_think(MODEL_CLASSNAME, "think_preview");
@@ -114,19 +117,27 @@ public menu_handler(id, menu, item)
 		return PLUGIN_HANDLED;
 	}
 
-	safelyRemoveEntity(id); // Remove previous preview
+	// Remove any existing preview and task to prevent duplicates
+	safelyRemoveEntity(id);
+	if (g_iPreviewTask[id] > 0)
+	{
+		remove_task(id);
+		g_iPreviewTask[id] = 0;
+	}
+
 	new iEnt = createEntityModel(id, g_Skins[iChoice][szModel], g_Skins[iChoice][iSubmodel]);
 	if (iEnt > 0)
 	{
 		g_iUserEntityIndex[id] = iEnt;
+		new Float:previewTime = get_pcvar_float(cvar_preview_time);
 		client_print(id, print_chat, "Showing preview of %s (submodel %d). Preview will be removed in %.0f seconds.", 
-			g_Skins[iChoice][szName], g_Skins[iChoice][iSubmodel], PREVIEW_TIME);
+			g_Skins[iChoice][szName], g_Skins[iChoice][iSubmodel], previewTime);
 		
 		// Initialize the remaining preview time in seconds
-		g_iPreviewTimeLeft[id] = floatround(PREVIEW_TIME);
+		g_iPreviewTask[id] = floatround(previewTime);
 		
 		// Set repeating task to display countdown on center screen and handle removal
-		g_iPreviewTask[id] = set_task(1.0, "update_preview_timer", id, _, _, "b");
+		set_task(1.0, "update_preview_timer", id, _, _, "b");
 		
 		show_preview_control_menu(id);
 	}
@@ -211,6 +222,10 @@ public preview_control_handler(id, menu, item)
 {
 	if (item == MENU_EXIT)
 	{
+		remove_task(id); // Remove the task if it exists
+		safelyRemoveEntity(id);
+		client_print(id, print_chat, "Preview removed.");
+		cmd_test_preview(id);
 		menu_destroy(menu);
 		return PLUGIN_HANDLED;
 	}
@@ -252,14 +267,12 @@ public preview_control_handler(id, menu, item)
 		}
 		case 3: // Remove Preview
 		{
-			// Remove the automatic removal task
-			if (g_iPreviewTask[id])
-			{
-				remove_task(g_iPreviewTask[id]);
-				g_iPreviewTask[id] = 0;
-			}
+			// Clear the preview timer
+			g_iPreviewTask[id] = 0;
+			remove_task(id); // Remove the task if it exists
 			safelyRemoveEntity(id);
 			client_print(id, print_chat, "Preview removed.");
+			cmd_test_preview(id);
 		}
 	}
 
@@ -274,33 +287,31 @@ public update_preview_timer(id)
 {
 	if (!is_user_alive(id) || !g_iUserEntityIndex[id])
 	{
-		if (g_iPreviewTask[id])
-		{
-			remove_task(g_iPreviewTask[id]);
-			g_iPreviewTask[id] = 0;
-		}
+		g_iPreviewTask[id] = 0;
 		safelyRemoveEntity(id);
+		remove_task(id); // Ensure task is removed
 		return;
 	}
 
 	// Decrement the remaining time
-	g_iPreviewTimeLeft[id]--;
+	if (g_iPreviewTask[id] > 0)
+	{
+		g_iPreviewTask[id]--;
+	}
 
-	if (g_iPreviewTimeLeft[id] <= 0)
+	if (g_iPreviewTask[id] <= 0)
 	{
 		// Time is up, remove preview
-		if (g_iPreviewTask[id])
-		{
-			remove_task(g_iPreviewTask[id]);
-			g_iPreviewTask[id] = 0;
-		}
+		g_iPreviewTask[id] = 0;
 		safelyRemoveEntity(id);
-		client_print(id, print_chat, "Preview automatically removed after %.0f seconds.", PREVIEW_TIME);
+		client_print(id, print_chat, "Preview automatically removed after %.0f seconds.", get_pcvar_float(cvar_preview_time));
+		remove_task(id); // Ensure task is removed
+		cmd_test_preview(id);
 		return;
 	}
 
 	// Display remaining time on center screen
-	client_print(id, print_center, "Display time remaining: %d", g_iPreviewTimeLeft[id]);
+	client_print(id, print_center, "Display time remaining: %d", g_iPreviewTask[id]);
 }
 
 // Function to calculate and update the entity position
@@ -333,11 +344,8 @@ updateEntityPosition(id, iEnt)
 public client_disconnected(id)
 {
 	safelyRemoveEntity(id);
-	if (g_iPreviewTask[id])
-	{
-		remove_task(g_iPreviewTask[id]);
-		g_iPreviewTask[id] = 0;
-	}
+	g_iPreviewTask[id] = 0;
+	remove_task(id); // Clean up task on disconnect
 }
 
 // Function to remove preview entity
