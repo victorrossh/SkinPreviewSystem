@@ -13,7 +13,7 @@
 // Variable to store the preview entity for each player
 new g_iUserEntityIndex[33];
 new Float:g_fPreviewDistance[33] = {50.0, ...}; // Default distance
-new g_iPreviewTask[33]; // Store remaining preview time in seconds (also indicates if task is active)
+new Float:g_fPreviewTask[33]; // Store remaining preview time in seconds as float (also indicates if task is active)
 
 new cvar_preview_time;
 new cvar_min_preview_distance;
@@ -129,14 +129,14 @@ public menu_handler(id, menu, item)
 	{
 		g_iUserEntityIndex[id] = iEnt;
 		new Float:previewTime = get_pcvar_float(cvar_preview_time);
-		client_print(id, print_chat, "Showing preview of %s (submodel %d). Preview will be removed in %.0f seconds.", 
-			g_Skins[iChoice][szName], g_Skins[iChoice][iSubmodel], previewTime);
+		client_print(id, print_chat, "Showing preview of %s (submodel %d). Preview will be removed in %.1f seconds.", 
+			g_Skins[iChoice][szName], g_Skins[iChoice][iSubmodel], previewTime);   
 		
-		// Initialize the remaining preview time in seconds
-		g_iPreviewTask[id] = floatround(previewTime);
+		// Initialize the remaining preview time in seconds as float
+		g_fPreviewTask[id] = previewTime;
 		
-		// Set repeating task to display countdown on center screen and handle removal
-		set_task(1.0, "update_preview_timer", id, _, _, "b");
+		// Call update_preview_timer to start the timer
+		update_preview_timer(id);
 		
 		show_preview_control_menu(id);
 	}
@@ -286,21 +286,21 @@ public update_preview_timer(id)
 	}
 
 	// Decrement the remaining time
-	if (g_iPreviewTask[id] > 0)
+	if (g_fPreviewTask[id] > 0.1)
 	{
-		g_iPreviewTask[id]--;
+		g_fPreviewTask[id] -= 0.1;
+		// Display remaining time on center screen
+		client_print(id, print_center, "Display time remaining: %.1f", g_fPreviewTask[id]);
+		// Schedule the next execution
+		set_task(0.1, "update_preview_timer", id);
 	}
-
-	if (g_iPreviewTask[id] <= 0)
+	else
 	{
+		g_fPreviewTask[id] = 0.0;
 		remove_preview(id);
-		client_print(id, print_chat, "Preview automatically removed after %.0f seconds.", get_pcvar_float(cvar_preview_time));
+		client_print(id, print_chat, "Preview automatically removed after %.1f seconds.", get_pcvar_float(cvar_preview_time));
 		cmd_test_preview(id);
-		return;
 	}
-
-	// Display remaining time on center screen
-	client_print(id, print_center, "Display time remaining: %d", g_iPreviewTask[id]);
 }
 
 // Function to calculate and update the entity position
@@ -334,6 +334,7 @@ public client_disconnected(id)
 {
 	remove_preview(id);
 }
+
 remove_preview(id)
 {
 	new iEnt = g_iUserEntityIndex[id];
@@ -342,6 +343,6 @@ remove_preview(id)
 		remove_entity(iEnt);
 	}
 	g_iUserEntityIndex[id] = 0;
-	g_iPreviewTask[id] = 0;
+	g_fPreviewTask[id] = 0.0;
 	remove_task(id);
 }
