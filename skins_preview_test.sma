@@ -15,7 +15,9 @@ new g_iUserEntityIndex[33];
 new Float:g_fPreviewDistance[33] = {50.0, ...}; // Default distance
 new g_iPreviewTask[33]; // Store remaining preview time in seconds (also indicates if task is active)
 
-new cvar_preview_time; // Cvar to control preview duration
+new cvar_preview_time;
+new cvar_min_preview_distance;
+new cvar_max_preview_distance;
 
 enum eSkin
 {
@@ -39,8 +41,10 @@ public plugin_init()
 	register_plugin(PLUGIN, VERSION, AUTHOR);
 	register_clcmd("say /preview", "cmd_test_preview");
 
-	// Register cvar for preview time (default 15 seconds)
+	// Register cvars for preview time and distance limits
 	cvar_preview_time = register_cvar("preview_time", "15");
+	cvar_min_preview_distance = register_cvar("min_preview_distance", "20.0");
+	cvar_max_preview_distance = register_cvar("max_preview_distance", "70.0");
 
 	// Register thinker for the entity to follow the aim
 	register_think(MODEL_CLASSNAME, "think_preview");
@@ -77,7 +81,7 @@ public cmd_test_preview(id)
 
 	if (g_iUserEntityIndex[id] != 0)
 	{
-		safelyRemoveEntity(id);
+		remove_preview(id);
 		client_print(id, print_chat, "Preview removed.");
 		return PLUGIN_HANDLED;
 	}
@@ -118,12 +122,7 @@ public menu_handler(id, menu, item)
 	}
 
 	// Remove any existing preview and task to prevent duplicates
-	safelyRemoveEntity(id);
-	if (g_iPreviewTask[id] > 0)
-	{
-		remove_task(id);
-		g_iPreviewTask[id] = 0;
-	}
+	remove_preview(id);
 
 	new iEnt = createEntityModel(id, g_Skins[iChoice][szModel], g_Skins[iChoice][iSubmodel]);
 	if (iEnt > 0)
@@ -190,8 +189,7 @@ public think_preview(iEnt)
 	new id = pev(iEnt, pev_iuser1);
 	if (!is_user_alive(id) || g_iUserEntityIndex[id] != iEnt)
 	{
-		remove_entity(iEnt);
-		g_iUserEntityIndex[id] = 0;
+		remove_preview(id);
 		return;
 	}
 
@@ -222,8 +220,7 @@ public preview_control_handler(id, menu, item)
 {
 	if (item == MENU_EXIT)
 	{
-		remove_task(id); // Remove the task if it exists
-		safelyRemoveEntity(id);
+		remove_preview(id);
 		client_print(id, print_chat, "Preview removed.");
 		cmd_test_preview(id);
 		menu_destroy(menu);
@@ -252,25 +249,22 @@ public preview_control_handler(id, menu, item)
 		case 1: // Move Closer
 		{
 			g_fPreviewDistance[id] -= 5.0;
-			if (g_fPreviewDistance[id] < 20.0)
-				g_fPreviewDistance[id] = 20.0;
+			if (g_fPreviewDistance[id] < get_pcvar_float(cvar_min_preview_distance))
+				g_fPreviewDistance[id] = get_pcvar_float(cvar_min_preview_distance);
 			updateEntityPosition(id, iEnt);
 			client_print(id, print_chat, "Preview moved closer. Distance: %.1f", g_fPreviewDistance[id]);
 		}
 		case 2: // Move Away
 		{
 			g_fPreviewDistance[id] += 5.0;
-			if (g_fPreviewDistance[id] > 70.0)
-				g_fPreviewDistance[id] = 70.0;
+			if (g_fPreviewDistance[id] > get_pcvar_float(cvar_max_preview_distance))
+				g_fPreviewDistance[id] = get_pcvar_float(cvar_max_preview_distance);
 			updateEntityPosition(id, iEnt);
 			client_print(id, print_chat, "Preview moved away. Distance: %.1f", g_fPreviewDistance[id]);
 		}
 		case 3: // Remove Preview
 		{
-			// Clear the preview timer
-			g_iPreviewTask[id] = 0;
-			remove_task(id); // Remove the task if it exists
-			safelyRemoveEntity(id);
+			remove_preview(id);
 			client_print(id, print_chat, "Preview removed.");
 			cmd_test_preview(id);
 		}
@@ -287,9 +281,7 @@ public update_preview_timer(id)
 {
 	if (!is_user_alive(id) || !g_iUserEntityIndex[id])
 	{
-		g_iPreviewTask[id] = 0;
-		safelyRemoveEntity(id);
-		remove_task(id); // Ensure task is removed
+		remove_preview(id);
 		return;
 	}
 
@@ -301,11 +293,8 @@ public update_preview_timer(id)
 
 	if (g_iPreviewTask[id] <= 0)
 	{
-		// Time is up, remove preview
-		g_iPreviewTask[id] = 0;
-		safelyRemoveEntity(id);
+		remove_preview(id);
 		client_print(id, print_chat, "Preview automatically removed after %.0f seconds.", get_pcvar_float(cvar_preview_time));
-		remove_task(id); // Ensure task is removed
 		cmd_test_preview(id);
 		return;
 	}
@@ -343,13 +332,9 @@ updateEntityPosition(id, iEnt)
 
 public client_disconnected(id)
 {
-	safelyRemoveEntity(id);
-	g_iPreviewTask[id] = 0;
-	remove_task(id); // Clean up task on disconnect
+	remove_preview(id);
 }
-
-// Function to remove preview entity
-safelyRemoveEntity(id)
+remove_preview(id)
 {
 	new iEnt = g_iUserEntityIndex[id];
 	if (iEnt && pev_valid(iEnt))
@@ -357,4 +342,6 @@ safelyRemoveEntity(id)
 		remove_entity(iEnt);
 	}
 	g_iUserEntityIndex[id] = 0;
+	g_iPreviewTask[id] = 0;
+	remove_task(id);
 }
