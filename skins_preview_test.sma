@@ -18,6 +18,7 @@ new Float:g_fPreviewTask[33]; // Store remaining preview time in seconds as floa
 new cvar_preview_time;
 new cvar_min_preview_distance;
 new cvar_max_preview_distance;
+new cvar_preview_visible_all;
 
 enum eSkin
 {
@@ -45,9 +46,13 @@ public plugin_init()
 	cvar_preview_time = register_cvar("preview_time", "15");
 	cvar_min_preview_distance = register_cvar("min_preview_distance", "20.0");
 	cvar_max_preview_distance = register_cvar("max_preview_distance", "70.0");
+	cvar_preview_visible_all = register_cvar("preview_visible_all", "0"); // Cvar to control visibility (0 = only player, 1 = all players)
 
 	// Register thinker for the entity to follow the aim
 	register_think(MODEL_CLASSNAME, "think_preview");
+
+	// Register AddToFullPack forward to control entity visibility
+	register_forward(FM_AddToFullPack, "fwd_AddToFullPack", 1);
 }
 
 public plugin_precache()
@@ -178,6 +183,36 @@ createEntityModel(id, const model[], submodel)
 	set_pev(iEnt, pev_nextthink, get_gametime() + 0.1);
 
 	return iEnt;
+}
+
+// Function to control entity visibility using AddToFullPack
+public fwd_AddToFullPack(es_handle, e, ent, host, hostflags, player, pSet)
+{
+	if (!pev_valid(ent))
+		return FMRES_IGNORED;
+
+	// Check if the entity is a skin preview
+	new classname[32];
+	pev(ent, pev_classname, classname, sizeof(classname) - 1);
+	if (!equal(classname, MODEL_CLASSNAME))
+		return FMRES_IGNORED;
+
+	// Get the owner of the preview entity
+	new owner = pev(ent, pev_iuser1);
+
+	// If preview_visible_all is 0, only the owner (host) should see the entity
+	if (get_pcvar_num(cvar_preview_visible_all) == 0)
+	{
+		if (host != owner || !is_user_alive(host))
+		{
+			// Hide the entity for everyone except the owner
+			set_es(es_handle, ES_Effects, get_es(es_handle, ES_Effects) | EF_NODRAW);
+			return FMRES_IGNORED;
+		}
+	}
+
+	// Otherwise, let the entity be visible to all (default behavior)
+	return FMRES_IGNORED;
 }
 
 // Function to update the entity position based on aim
