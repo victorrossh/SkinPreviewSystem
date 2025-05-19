@@ -10,6 +10,8 @@
 #define MODEL_CLASSNAME "skin_preview"
 #define SKINS_NUM 6
 
+#define PREFIX_CHAT "^4[FWO]"
+
 // Variable to store the preview entity for each player
 new g_iUserEntityIndex[33];
 new Float:g_fPreviewDistance[33] = {50.0, ...}; // Default distance
@@ -80,14 +82,14 @@ public cmd_test_preview(id)
 {
 	if (!is_user_alive(id))
 	{
-		client_print(id, print_chat, "You need to be alive to test the preview!");
+		client_print_color(id, print_chat, "%s ^1You need to be alive to test the preview!", PREFIX_CHAT);
 		return PLUGIN_HANDLED;
 	}
 
 	if (g_iUserEntityIndex[id] != 0)
 	{
 		remove_preview(id);
-		client_print(id, print_chat, "Preview removed.");
+		client_print_color(id, print_chat, "%s ^1Preview removed.", PREFIX_CHAT);
 		return PLUGIN_HANDLED;
 	}
 
@@ -122,7 +124,7 @@ public menu_handler(id, menu, item)
 
 	if (!is_user_alive(id))
 	{
-		client_print(id, print_chat, "You need to be alive to show the preview!");
+		client_print_color(id, print_chat, "%s ^1You need to be alive to show the preview!", PREFIX_CHAT);
 		return PLUGIN_HANDLED;
 	}
 
@@ -134,8 +136,8 @@ public menu_handler(id, menu, item)
 	{
 		g_iUserEntityIndex[id] = iEnt;
 		new Float:previewTime = get_pcvar_float(cvar_preview_time);
-		client_print(id, print_chat, "Showing preview of %s (submodel %d). Preview will be removed in %.1f seconds.", 
-			g_Skins[iChoice][szName], g_Skins[iChoice][iSubmodel], previewTime);   
+		client_print_color(id, print_chat, "%s ^1Showing preview of ^4%s (submodel %d)^1. Preview will be removed in ^4%.1f ^1seconds.", 
+			PREFIX_CHAT, g_Skins[iChoice][szName], g_Skins[iChoice][iSubmodel], previewTime);   
 		
 		// Initialize the remaining preview time in seconds as float
 		g_fPreviewTask[id] = previewTime;
@@ -147,7 +149,7 @@ public menu_handler(id, menu, item)
 	}
 	else
 	{
-		client_print(id, print_chat, "Failed to show preview!");
+		client_print_color(id, print_chat, "%s ^1Failed to show preview!", PREFIX_CHAT);
 	}
 	return PLUGIN_HANDLED;
 }
@@ -256,7 +258,7 @@ public preview_control_handler(id, menu, item)
 	if (item == MENU_EXIT)
 	{
 		remove_preview(id);
-		client_print(id, print_chat, "Preview removed.");
+		client_print_color(id, print_chat, "%s ^1Preview removed.", PREFIX_CHAT);
 		cmd_test_preview(id);
 		menu_destroy(menu);
 		return PLUGIN_HANDLED;
@@ -287,7 +289,7 @@ public preview_control_handler(id, menu, item)
 			if (g_fPreviewDistance[id] < get_pcvar_float(cvar_min_preview_distance))
 				g_fPreviewDistance[id] = get_pcvar_float(cvar_min_preview_distance);
 			updateEntityPosition(id, iEnt);
-			client_print(id, print_chat, "Preview moved closer. Distance: %.1f", g_fPreviewDistance[id]);
+			client_print_color(id, print_chat, "%s ^1Preview moved closer. Distance: ^4%.1f", PREFIX_CHAT, g_fPreviewDistance[id]);
 		}
 		case 2: // Move Away
 		{
@@ -295,12 +297,12 @@ public preview_control_handler(id, menu, item)
 			if (g_fPreviewDistance[id] > get_pcvar_float(cvar_max_preview_distance))
 				g_fPreviewDistance[id] = get_pcvar_float(cvar_max_preview_distance);
 			updateEntityPosition(id, iEnt);
-			client_print(id, print_chat, "Preview moved away. Distance: %.1f", g_fPreviewDistance[id]);
+			client_print_color(id, print_chat, "%s ^1Preview moved away. Distance: ^4%.1f", PREFIX_CHAT, g_fPreviewDistance[id]);
 		}
 		case 3: // Remove Preview
 		{
 			remove_preview(id);
-			client_print(id, print_chat, "Preview removed.");
+			client_print_color(id, print_chat, "%s ^1Preview removed.", PREFIX_CHAT);
 			cmd_test_preview(id);
 		}
 	}
@@ -333,7 +335,7 @@ public update_preview_timer(id)
 	{
 		g_fPreviewTask[id] = 0.0;
 		remove_preview(id);
-		client_print(id, print_chat, "Preview automatically removed after %.1f seconds.", get_pcvar_float(cvar_preview_time));
+		client_print_color(id, print_chat, "%s ^1Preview automatically removed after ^4%.1f seconds.", PREFIX_CHAT, get_pcvar_float(cvar_preview_time));
 		cmd_test_preview(id);
 	}
 }
