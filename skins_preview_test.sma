@@ -74,8 +74,6 @@ public plugin_precache()
 				precache_generic(mdl);
 		}
 	}
-
-	precache_model("models/rpgrocket.mdl");
 }
 
 public cmd_test_preview(id)
