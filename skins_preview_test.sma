@@ -7,6 +7,8 @@
 #define VERSION "1.0"
 #define AUTHOR "ftl~"
 
+#pragma semicolon 1
+
 #define MODEL_CLASSNAME "skin_preview"
 #define SKINS_NUM 6
 
@@ -37,7 +39,7 @@ new g_Skins[SKINS_NUM][eSkin] = {
 	{"Neo", "models/player/llg_player_compiled/llg_player_compiled.mdl", 7},
 	{"Mila", "models/player/llg2025_mila/llg2025_mila.mdl", 0},
 	{"Banana", "models/player/llg_player_compiled/llg_player_compiled.mdl", 6}
-}
+};
 
 public plugin_init()
 {
